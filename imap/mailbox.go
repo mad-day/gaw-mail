@@ -79,7 +79,8 @@ func (m *mailbox) ListMessages(uid bool, seqSet *imap.SeqSet, items []imap.Fetch
 
 				msg.Body[section] = b
 			}
-
+			
+			
 			ch <- msg
 		}
 	}()
@@ -92,6 +93,5 @@ func (m *mailbox) CreateMessage(flags []string, date time.Time, r imap.Literal) 
 	if err := encryptMessage(m.u.kr, b, r); err != nil {
 		return err
 	}
-
 	return m.Mailbox.CreateMessage(flags, date, b)
 }

@@ -26,6 +26,13 @@ type Backend struct {
 
 var _ backend.Backend = (*Backend)(nil)
 
+func NewNoTLS(addr string) *Backend {
+	return &Backend{
+		Addr: addr,
+		Security: SecurityNone,
+	}
+}
+
 func New(addr string) *Backend {
 	return &Backend{
 		Addr: addr,
