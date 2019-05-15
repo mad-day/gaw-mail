@@ -1,6 +1,5 @@
-MIT License
-
-Copyright (c) 2019 Simon Schmidt
+/*
+Copyright (c) 2016 emersion (Simon Ser)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -19,3 +18,36 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+*/
+
+
+// Package imap provides a go-imap backend that encrypts and decrypts PGP
+// messages.
+package imap
+
+import (
+	"github.com/emersion/go-imap"
+	"github.com/emersion/go-imap/backend"
+
+	"github.com/emersion/go-pgpmail"
+)
+
+type Backend struct {
+	backend.Backend
+
+	unlock pgpmail.UnlockFunction
+}
+
+func New(be backend.Backend, unlock pgpmail.UnlockFunction) *Backend {
+	return &Backend{be, unlock}
+}
+
+func (be *Backend) Login(conn *imap.ConnInfo,username, password string) (backend.User, error) {
+	if u, err := be.Backend.Login(conn,username, password); err != nil {
+		return nil, err
+	} else if kr, err := be.unlock(username, password); err != nil {
+		return nil, err
+	} else {
+		return &user{u, kr}, nil
+	}
+}

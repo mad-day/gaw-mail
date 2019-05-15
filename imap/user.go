@@ -1,6 +1,5 @@
-MIT License
-
-Copyright (c) 2019 Simon Schmidt
+/*
+Copyright (c) 2016 emersion (Simon Ser)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -19,3 +18,42 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+*/
+
+
+package imap
+
+import (
+	"github.com/emersion/go-imap/backend"
+
+	"golang.org/x/crypto/openpgp"
+)
+
+type user struct {
+	backend.User
+
+	kr openpgp.EntityList
+}
+
+func (u *user) getMailbox(m backend.Mailbox) *mailbox {
+	return &mailbox{m, u}
+}
+
+func (u *user) ListMailboxes(subscribed bool) ([]backend.Mailbox, error) {
+	if mailboxes, err := u.User.ListMailboxes(subscribed); err != nil {
+		return nil, err
+	} else {
+		for i, m := range mailboxes {
+			mailboxes[i] = u.getMailbox(m)
+		}
+		return mailboxes, nil
+	}
+}
+
+func (u *user) GetMailbox(name string) (backend.Mailbox, error) {
+	if m, err := u.User.GetMailbox(name); err != nil {
+		return nil, err
+	} else {
+		return u.getMailbox(m), nil
+	}
+}

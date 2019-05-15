@@ -1,6 +1,5 @@
-MIT License
-
-Copyright (c) 2019 Simon Schmidt
+/*
+Copyright (c) 2016 emersion (Simon Ser)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -19,3 +18,28 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+*/
+
+
+package imap
+
+import (
+	"bytes"
+	"io"
+
+	"golang.org/x/crypto/openpgp"
+
+	"github.com/emersion/go-pgpmail/pgpmessage"
+)
+
+func decryptMessage(kr openpgp.KeyRing, r io.Reader) (io.Reader, error) {
+	b := new(bytes.Buffer)
+	if err := pgpmessage.Decrypt(b, r, kr); err != nil {
+		return nil, err
+	}
+	return b, nil
+}
+
+func encryptMessage(kr openpgp.EntityList, w io.Writer, r io.Reader) error {
+	return pgpmessage.Encrypt(w, r, kr, kr[0])
+}
