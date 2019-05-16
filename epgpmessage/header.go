@@ -50,6 +50,24 @@ func (r readerAll) Read(b []byte) (i int,e error) {
 	return
 }
 
+var wrapmt = [...]string {
+	"Content-Type",
+	"X-Epgp-Wrapped",
+}
+func checkIsWrap(rh message.Header) bool {
+	var h message.Header
+	for _,wraphdr := range wrapmt {
+		h.Set("Content-Type",rh.Get(wraphdr))
+		if t,m,err := h.ContentType() ; err==nil {
+			// Content-Type: text/plain; rfc822=pgp
+			if t=="text/plain" && m["rfc822"]=="pgp" { return true }
+		}
+	}
+	return false
+}
+
+
+
 func parseMessageHeader(r io.Reader) (message.Header,io.Reader,error) {
 	br := bufio.NewReader(r)
 	h, err := textproto.ReadHeader(br)

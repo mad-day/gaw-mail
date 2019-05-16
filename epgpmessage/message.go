@@ -102,14 +102,12 @@ func DecryptWrap(w io.Writer, r io.Reader, kr openpgp.KeyRing) error {
 		return err
 	}
 	
-	if t,m,err := h.ContentType() ; err==nil {
-		// Content-Type: text/plain; rfc822=pgp
-		if t=="text/plain" && m["rfc822"]=="pgp" {
-			md, err := decryptArmored(r2, kr)
-			if err!=nil { return err }
-			if md.SignatureError!=nil { return md.SignatureError }
-			return DecryptWrap(w, readerAll{md.UnverifiedBody}, kr)
-		}
+	// Content-Type: text/plain; rfc822=pgp
+	if checkIsWrap(h) {
+		md, err := decryptArmored(r2, kr)
+		if err!=nil { return err }
+		if md.SignatureError!=nil { return md.SignatureError }
+		return DecryptWrap(w, readerAll{md.UnverifiedBody}, kr)
 	}
 	
 	buf := new(bytes.Buffer)
@@ -137,14 +135,12 @@ func DecryptFull(w io.Writer, r io.Reader, kr openpgp.KeyRing) error {
 		return err
 	}
 	
-	if t,m,err := h.ContentType() ; err==nil {
-		// Content-Type: text/plain; rfc822=pgp
-		if t=="text/plain" && m["rfc822"]=="pgp" {
-			md, err := decryptArmored(r2, kr)
-			if err!=nil { return err }
-			if md.SignatureError!=nil { return md.SignatureError }
-			return DecryptFull(w, readerAll{md.UnverifiedBody}, kr)
-		}
+	// Content-Type: text/plain; rfc822=pgp
+	if checkIsWrap(h) {
+		md, err := decryptArmored(r2, kr)
+		if err!=nil { return err }
+		if md.SignatureError!=nil { return md.SignatureError }
+		return DecryptFull(w, readerAll{md.UnverifiedBody}, kr)
 	}
 	
 	e, err := message.New(h,r2)
@@ -262,6 +258,7 @@ func EncryptWrap(w io.Writer, r io.Reader, to []*openpgp.Entity, signed *openpgp
 	for i := h.FieldsByKey("Message-Id"); i.Next() ; { hd.Add("Message-ID",i.Value()) }
 	hd.Add("Subject","A Secret message (PGP)")
 	hd.SetContentType("text/plain",map[string]string{"rfc822":"pgp"})
+	hd.Set("X-Epgp-Wrapped",hd.Get("Content-Type"))
 	
 	mw, err := message.CreateWriter(w, hd)
 	plaintext, err := encryptArmored(mw, to, signed)

@@ -32,7 +32,7 @@ import (
 	"github.com/emersion/go-pgpmail/pgpmessage"
 )
 
-func decryptMessage(kr openpgp.KeyRing, r io.Reader) (io.Reader, error) {
+func decryptMessage(kr openpgp.KeyRing, r io.Reader) (*bytes.Buffer, error) {
 	b := new(bytes.Buffer)
 	if err := pgpmessage.Decrypt(b, r, kr); err != nil {
 		return nil, err

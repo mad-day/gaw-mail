@@ -25,7 +25,6 @@ package imap
 
 import (
 	"bytes"
-	"io"
 	"log"
 	"time"
 
@@ -70,14 +69,8 @@ func (m *mailbox) ListMessages(uid bool, seqSet *imap.SeqSet, items []imap.Fetch
 					log.Println("WARN: cannot decrypt part:", err)
 					continue
 				}
-
-				b := new(bytes.Buffer)
-				if _, err := io.Copy(b, r); err != nil {
-					log.Println("WARN: cannot decrypt part:", err)
-					continue
-				}
-
-				msg.Body[section] = b
+				
+				msg.Body[section] = r
 			}
 			
 			

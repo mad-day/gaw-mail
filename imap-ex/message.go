@@ -33,7 +33,7 @@ import (
 	"github.com/mad-day/gaw-mail/epgpmessage"
 )
 
-func decryptMessage(mode DecryptMode,kr openpgp.KeyRing, r io.Reader) (io.Reader, error) {
+func decryptMessage(mode DecryptMode,kr openpgp.KeyRing, r io.Reader) (*bytes.Buffer, error) {
 	b := new(bytes.Buffer)
 	var err error
 	switch mode {
