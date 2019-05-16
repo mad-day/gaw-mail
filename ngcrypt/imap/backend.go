@@ -35,18 +35,27 @@ import (
 	"github.com/mad-day/gaw-mail/ngcrypt"
 )
 
+const (
+	FlagEnableSearch uint = 1<<iota
+)
+
 type Backend struct {
 	backend.Backend
 
 	Unlock pgpmail.UnlockFunction
 	
 	Cleaner ngcrypt.Cleaner
+	
+	Flags uint
+}
+func (be *Backend) has(u uint) bool {
+	return (be.Flags&u)!=0
 }
 
 var _ backend.Backend = (*Backend)(nil)
 
 func New(be backend.Backend, unlock pgpmail.UnlockFunction) *Backend {
-	return &Backend{be, unlock, nil}
+	return &Backend{be, unlock, nil, 0}
 }
 
 func (be *Backend) Login(conn *imap.ConnInfo,username, password string) (backend.User, error) {

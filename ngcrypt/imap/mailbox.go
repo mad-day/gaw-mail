@@ -97,8 +97,8 @@ func (m *mailbox) fetchHead(msg *imap.Message) (entityPop,int,error) {
 func fetchNone(_ *imap.Message) (entityPop,int,error) { return nil,0,nil }
 
 func (m *mailbox) ListMessages(uid bool, seqSet *imap.SeqSet, items []imap.FetchItem, ch chan<- *imap.Message) error {
-	// TODO: support imap.BodySectionName.Partial
-	// TODO: support imap.TextSpecifier
+	// ???: support imap.BodySectionName.Partial
+	// ???: support imap.TextSpecifier
 	
 	pass,head,body,hsize := filter(items)
 	
@@ -183,7 +183,80 @@ func (m *mailbox) ListMessages(uid bool, seqSet *imap.SeqSet, items []imap.Fetch
 		}
 	}()
 
-	return m.Mailbox.ListMessages(uid, seqSet, items, messages)
+	return m.Mailbox.ListMessages(uid, seqSet, pass, messages)
+}
+
+type searchRequirement struct{
+	body bool
+}
+func (s *searchRequirement) scan(c *imap.SearchCriteria) {
+	for _, not := range c.Not { s.scan(not) }
+	for _, or := range c.Or { s.scan(or[0]); s.scan(or[1]) }
+	
+	if len(c.Body)!=0 || len(c.Text)!=0 { s.body = true }
+}
+
+func (m *mailbox) SearchMessages(uid bool, criteria *imap.SearchCriteria) ([]uint32, error) {
+	/*
+	First, check if encrypted search is enabled.
+	*/
+	if !m.u.be.has(FlagEnableSearch) {
+		return m.Mailbox.SearchMessages(uid,criteria)
+	}
+	var sr searchRequirement
+	sr.scan(criteria)
+	
+	pass := make([]imap.FetchItem,0,9)
+	
+	pass = append(pass,imap.FetchUid,imap.FetchInternalDate,imap.FetchFlags)
+	{ /* Encrypted Envelope/Header --- REQUIRED */
+		tx := new(imap.BodySectionName)
+		tx.Path = []int{1}
+		tx.Peek = true
+		pass = append(pass,tx.FetchItem())
+	}
+	if sr.body { /* Encrypted Body. --- OPTIONAL */
+		tx := new(imap.BodySectionName)
+		tx.Path = []int{2}
+		tx.Peek = true
+		pass = append(pass,tx.FetchItem())
+	}
+	
+	var fetcher func(m *imap.Message) (entityPop,int,error)
+	if sr.body {
+		fetcher = m.fetchHeadAndBody
+	} else {
+		fetcher = m.fetchHead
+	}
+	
+	messages := make(chan *imap.Message)
+	
+	minf,err := m.Mailbox.Status([]imap.StatusItem{imap.StatusMessages})
+	if err!=nil { return nil,err }
+	
+	seqset := new(imap.SeqSet)
+	seqset.AddRange(1, minf.Messages)
+	go m.Mailbox.ListMessages(false, seqset, pass, messages)
+	
+	u := make([]uint32,0,minf.Messages)
+	
+	for msg := range messages {
+		entPop,_,err := fetcher(msg)
+		if err!=nil { continue }
+		ent,err := entPop()
+		if err!=nil { continue }
+		ok,err := backendutil.Match(ent, msg.SeqNum, msg.Uid, msg.InternalDate, msg.Flags, criteria)
+		if err!=nil { continue }
+		if ok {
+			if uid {
+				u = append(u,msg.Uid)
+			} else {
+				u = append(u,msg.SeqNum)
+			}
+		}
+	}
+	
+	return m.SearchMessages(uid,criteria)
 }
 
 func (m *mailbox) CreateMessage(flags []string, date time.Time, r imap.Literal) error {
