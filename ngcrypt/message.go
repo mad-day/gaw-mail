@@ -140,6 +140,9 @@ func Encrypt(w io.Writer, mail Literal, to []*openpgp.Entity, signed *openpgp.En
 	return wr.Close()
 }
 
+/*
+Decrypt the RFC822 header using Part-1 as input.
+*/
 func DecryptHeader(m1 Literal, kr openpgp.KeyRing) (hdr message.Header, err0 error) {
 	var rest bytes.Buffer
 	var rd io.Reader
@@ -159,6 +162,9 @@ func DecryptHeader(m1 Literal, kr openpgp.KeyRing) (hdr message.Header, err0 err
 	return
 }
 
+/*
+Decrypt the RFC822 message using Part-1 and Part-2 as input.
+*/
 func DecryptMessage(w io.Writer,m1,m2 Literal, kr openpgp.KeyRing) (err0 error) {
 	var md *openpgp.MessageDetails
 	m1,err0 = removeHeaderIfAny(m1)
@@ -188,6 +194,9 @@ func DecryptMessage(w io.Writer,m1,m2 Literal, kr openpgp.KeyRing) (err0 error) 
 	return
 }
 
+/*
+Decrypt the RFC822 message using Part-1 and Part-2 as input.
+*/
 func DecryptWholeMessage(w io.Writer,r io.Reader, kr openpgp.KeyRing) (err0 error) {
 	
 	msg,err := message.Read(r)
