@@ -43,7 +43,7 @@ type mailbox struct {
 	u *user
 }
 
-func filter(items []imap.FetchItem) (pass []imap.FetchItem, head,body,size bool) {
+func filter(items []imap.FetchItem) (pass []imap.FetchItem, head,body,size,see bool) {
 	pass = make([]imap.FetchItem,0,len(items)+2)
 	
 	for _,item := range items {
@@ -54,6 +54,13 @@ func filter(items []imap.FetchItem) (pass []imap.FetchItem, head,body,size bool)
 		case imap.FetchFlags,imap.FetchInternalDate,imap.FetchUid:
 			pass = append(pass,item)
 		default: body = true
+		}
+		if section, err := imap.ParseBodySectionName(item); err==nil {
+			if !section.Peek { see = true }
+		} else {
+			switch item {
+			case imap.FetchRFC822, imap.FetchRFC822Text: see = true
+			}
 		}
 	}
 	
@@ -100,7 +107,7 @@ func (m *mailbox) ListMessages(uid bool, seqSet *imap.SeqSet, items []imap.Fetch
 	// ???: support imap.BodySectionName.Partial
 	// ???: support imap.TextSpecifier
 	
-	pass,head,body,hsize := filter(items)
+	pass,head,body,hsize,see := filter(items)
 	
 	/* Short-Cut. */
 	if !( head||body||hsize ) {
@@ -118,13 +125,13 @@ func (m *mailbox) ListMessages(uid bool, seqSet *imap.SeqSet, items []imap.Fetch
 	if head {
 		tx := new(imap.BodySectionName)
 		tx.Path = []int{1}
-		tx.Peek = true
+		tx.Peek = !see
 		pass = append(pass,tx.FetchItem())
 	}
 	if body {
 		tx := new(imap.BodySectionName)
 		tx.Path = []int{2}
-		tx.Peek = true
+		tx.Peek = !see
 		pass = append(pass,tx.FetchItem())
 	}
 	
