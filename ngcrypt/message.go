@@ -62,6 +62,15 @@ func Radical(h *message.Header) {
 	h.Set("To","Unknown <unknown@none>")
 }
 
+/*
+Encrypts the given Mail into an NGCRYPT message. The NGCRYPT message is a multipart-message with 1 or 2 parts,
+each compressed and PGP encrypted (called "NGCRYPT MESSAGE" instead of "PGP MESSAGE").
+
+The first part always contains the complete header. Optionally it contains the body.
+
+The second part, if any, contains the body. This is useful for Envelope-Fetching, as the IMAP-Gateway only needs
+to fetch the first part from the server whilst delivering the Envelope to the client.
+*/
 func Encrypt(w io.Writer, mail Literal, to []*openpgp.Entity, signed *openpgp.Entity, c Cleaner) error {
 	length := mail.Len()
 	

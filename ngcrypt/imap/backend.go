@@ -22,7 +22,7 @@ SOFTWARE.
 */
 
 
-// Package imap provides a go-imap backend that encrypts and decrypts PGP
+// Package imap provides a go-imap backend that encrypts and decrypts NGCRYPT
 // messages.
 package imap
 
