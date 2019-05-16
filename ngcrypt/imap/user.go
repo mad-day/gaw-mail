@@ -33,6 +33,8 @@ type user struct {
 	backend.User
 
 	kr openpgp.EntityList
+	
+	be *Backend
 }
 
 func (u *user) getMailbox(m backend.Mailbox) *mailbox {

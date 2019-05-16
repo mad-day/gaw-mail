@@ -69,8 +69,12 @@ func encodeNgcrypt(out io.Writer, to []*openpgp.Entity, signed *openpgp.Entity, 
 }
 
 func decodeNcrypt(in io.Reader, kr openpgp.KeyRing) (*openpgp.MessageDetails, error) {
+	md,_,err := decodeNcrypt2(in,kr)
+	return md,err
+}
+func decodeNcrypt2(in io.Reader, kr openpgp.KeyRing) (*openpgp.MessageDetails,map[string]string, error) {
 	block,err := armor.Decode(in)
-	if err!=nil { return nil,err }
+	if err!=nil { return nil,nil,err }
 	
 	dr,err := decrypt(block.Body,kr)
 	
@@ -81,5 +85,5 @@ func decodeNcrypt(in io.Reader, kr openpgp.KeyRing) (*openpgp.MessageDetails, er
 		dr.UnverifiedBody = uc
 	}
 	
-	return dr,err
+	return dr,block.Header,err
 }

@@ -1,4 +1,5 @@
 /*
+Copyright (c) 2019 Simon Schmidt
 Copyright (c) 2016 emersion (Simon Ser)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -30,24 +31,30 @@ import (
 	"github.com/emersion/go-imap/backend"
 
 	"github.com/emersion/go-pgpmail"
+	
+	"github.com/mad-day/gaw-mail/ngcrypt"
 )
 
 type Backend struct {
 	backend.Backend
 
-	unlock pgpmail.UnlockFunction
+	Unlock pgpmail.UnlockFunction
+	
+	Cleaner ngcrypt.Cleaner
 }
 
+var _ backend.Backend = (*Backend)(nil)
+
 func New(be backend.Backend, unlock pgpmail.UnlockFunction) *Backend {
-	return &Backend{be, unlock}
+	return &Backend{be, unlock, nil}
 }
 
 func (be *Backend) Login(conn *imap.ConnInfo,username, password string) (backend.User, error) {
 	if u, err := be.Backend.Login(conn,username, password); err != nil {
 		return nil, err
-	} else if kr, err := be.unlock(username, password); err != nil {
+	} else if kr, err := be.Unlock(username, password); err != nil {
 		return nil, err
 	} else {
-		return &user{u, kr}, nil
+		return &user{u, kr, be}, nil
 	}
 }
