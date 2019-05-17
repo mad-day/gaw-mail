@@ -66,9 +66,11 @@ func Radical(h *message.Header) {
 Encrypts the given Mail into an NGCRYPT message. The NGCRYPT message is a multipart-message with 1 or 2 parts,
 each compressed and PGP encrypted (called "NGCRYPT MESSAGE" instead of "PGP MESSAGE").
 
-The first part always contains the complete header. Optionally it contains the body.
+The first part always contains the complete header.
 
-The second part, if any, contains the body. This is useful for Envelope-Fetching, as the IMAP-Gateway only needs
+The second part contains the body.
+
+This is useful for Envelope-Fetching, as the IMAP-Gateway only needs
 to fetch the first part from the server whilst delivering the Envelope to the client.
 */
 func Encrypt(w io.Writer, mail Literal, to []*openpgp.Entity, signed *openpgp.Entity, c Cleaner) error {
@@ -86,17 +88,6 @@ func Encrypt(w io.Writer, mail Literal, to []*openpgp.Entity, signed *openpgp.En
 		return err
 	}
 	
-	/*
-	If True, we will seperate the header from the body.
-	*/
-	split := true
-	{
-		//hl := header.Len()
-		//bl := length-hl
-		switch {
-		case length < (1<<10): split = false
-		}
-	}
 	
 	/* Strip header-fields */
 	for i := h.Fields(); i.Next();  {
@@ -126,14 +117,9 @@ func Encrypt(w io.Writer, mail Literal, to []*openpgp.Entity, signed *openpgp.En
 	enc,err := encodeNgcrypt(pw,to,signed,hdr1);   if err!=nil { return err }
 	
 	_,err = header.WriteTo(enc);   if err!=nil { return err }
-	if !split {
-		_,err = io.Copy(enc,b)
-		if err!=nil { return err }
-	}
+	
 	err = enc.Close();   if err!=nil { return err }
 	err = pw.Close();   if err!=nil { return err }
-	
-	if !split { return wr.Close() }
 	
 	// ----------------------------------------------------------------------------
 	

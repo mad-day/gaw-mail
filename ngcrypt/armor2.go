@@ -33,7 +33,7 @@ import (
 	//"fmt"
 )
 
-const ngcryptMessageType = "NGCRYPT MESSAGE"
+const ngcryptMessageType = "NGCRYPT BLOCK"
 
 type stack []io.Closer
 func (s stack) Close() (err2 error) {
