@@ -26,6 +26,7 @@ package ngcrypt
 
 import (
 	"io"
+	"bufio"
 	"compress/flate"
 	
 	"golang.org/x/crypto/openpgp"
@@ -44,6 +45,10 @@ func (s stack) Close() (err2 error) {
 	return
 }
 
+type flusheri interface{ Flush() error }
+type flusherc struct { flusheri }
+func (f flusherc) Close() error { return f.Flush() }
+
 type wriClo struct {
 	io.Writer
 	stack
@@ -59,13 +64,14 @@ func encodeNgcrypt(out io.Writer, to []*openpgp.Entity, signed *openpgp.Entity, 
 	if err != nil {
 		return nil, err
 	}
+	ew2 := bufio.NewWriter(ew)
 	
-	cw,err := flate.NewWriter(ew,1)
+	cw,err := flate.NewWriter(ew2,1)
 	if err != nil {
 		return nil, err
 	}
 	
-	return &wriClo{cw,stack{cw,ew,aw}}, err
+	return &wriClo{cw,stack{cw,flusherc{ew2},ew,aw}}, err
 }
 
 func decodeNcrypt(in io.Reader, kr openpgp.KeyRing) (*openpgp.MessageDetails, error) {
