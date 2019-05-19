@@ -28,6 +28,8 @@ import (
 	"bytes"
 	"time"
 	"io"
+	"bufio"
+	"fmt"
 
 	"github.com/emersion/go-imap"
 	"github.com/emersion/go-imap/backend"
@@ -98,6 +100,15 @@ func parts(m map[*imap.BodySectionName]imap.Literal) (m1, m2 imap.Literal) {
 	}
 	return
 }
+func headerPart(m map[*imap.BodySectionName]imap.Literal) (hdrl imap.Literal) {
+	for k,v := range m {
+		if len(k.Path)!=0 { continue }
+		if k.Specifier!=imap.HeaderSpecifier { continue }
+		hdrl = v
+	}
+	return
+}
+
 
 type entityPop func() (*message.Entity,error)
 func epParse(b []byte) entityPop {
@@ -113,6 +124,8 @@ func epBody(b io.Reader) entityPop {
 
 func (m *mailbox) fetchHeadAndBody(msg *imap.Message) (entityPop,int,error) {
 	m1,m2 := parts(msg.Body)
+	if m1!=nil { return nil,0,io.EOF }
+	if m2!=nil { return nil,0,io.EOF }
 	b := new(bytes.Buffer)
 	err := ngcrypt.DecryptMessage(b,m1,m2,m.u.kr)
 	if err!=nil { return nil,0,err }
@@ -121,15 +134,27 @@ func (m *mailbox) fetchHeadAndBody(msg *imap.Message) (entityPop,int,error) {
 }
 func (m *mailbox) fetchHead(msg *imap.Message) (entityPop,int,error) {
 	m1,_ := parts(msg.Body)
+	if m1!=nil { return nil,0,io.EOF }
 	hdr,size,err := ngcrypt.DecryptHeader(m1,m.u.kr)
 	if err!=nil { return nil,0,err }
 	return epHead(hdr),size,nil
 }
 func (m *mailbox) fetchBody(msg *imap.Message) (entityPop,int,error) {
 	_,m2 := parts(msg.Body)
+	if m2!=nil { return nil,0,io.EOF }
 	body,err := ngcrypt.DecryptBody(m2,m.u.kr)
 	if err!=nil { return nil,0,err }
 	return epBody(body),-1,nil
+}
+
+func (m *mailbox) fetchSize(msg *imap.Message) (entityPop,int,error) {
+	hdrl := headerPart(msg.Body)
+	if hdrl!=nil { return nil,0,io.EOF }
+	h,err := textproto.ReadHeader(bufio.NewReader(hdrl))
+	if err!=nil { return nil,0,err }
+	var size int
+	fmt.Sscan(h.Get("X-Ngcrypt-Size"),&size)
+	return nil,size,nil
 }
 
 func toLiteral(r io.Reader) imap.Literal {
@@ -152,9 +177,7 @@ func (m *mailbox) ListMessages(uid bool, seqSet *imap.SeqSet, items []imap.Fetch
 	if !( head||body||hsize ) {
 		return m.Mailbox.ListMessages(uid, seqSet, items, ch)
 	}
-	if hsize {
-		head = true
-	}
+	// if hsize { head = true }
 	
 	var fetcher func(m *imap.Message) (entityPop,int,error)
 	
@@ -176,6 +199,12 @@ func (m *mailbox) ListMessages(uid bool, seqSet *imap.SeqSet, items []imap.Fetch
 	} else if body {
 		fetcher = m.fetchBody
 	} else if head {
+		fetcher = m.fetchHead
+	} else if hsize {
+		tx := new(imap.BodySectionName)
+		tx.Specifier = imap.HeaderSpecifier
+		tx.Peek = !see
+		pass = append(pass,tx.FetchItem())
 		fetcher = m.fetchHead
 	} else {
 		fetcher = fetchNone
