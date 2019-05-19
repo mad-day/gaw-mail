@@ -263,7 +263,7 @@ func (m *mailbox) SearchMessages(uid bool, criteria *imap.SearchCriteria) ([]uin
 		}
 	}
 	
-	return m.SearchMessages(uid,criteria)
+	return u,nil
 }
 
 func (m *mailbox) CreateMessage(flags []string, date time.Time, r imap.Literal) error {
