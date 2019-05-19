@@ -161,6 +161,26 @@ func DecryptHeader(m1 Literal, kr openpgp.KeyRing) (hdr message.Header,size int,
 }
 
 /*
+Decrypt the RFC822 body using Part-2 as input.
+*/
+func DecryptBody(m2 Literal, kr openpgp.KeyRing) (body Literal,err0 error) {
+	var md *openpgp.MessageDetails
+	m2,err0 = removeHeaderIfAny(m2)
+	if err0!=nil { return }
+	
+	md,_,err0 = decodeNcrypt2(m2,kr)
+	if err0!=nil { return }
+	
+	buf := new(bytes.Buffer)
+	_,err0 = buf.ReadFrom(md.UnverifiedBody)
+	if err0!=nil { return }
+	
+	/* Propagate Signature errors. */
+	if md.SignatureError!=nil && err0==nil { err0 = md.SignatureError }
+	return
+}
+
+/*
 Decrypt the RFC822 message using Part-1 and Part-2 as input.
 */
 func DecryptMessage(w io.Writer,m1,m2 Literal, kr openpgp.KeyRing) (err0 error) {

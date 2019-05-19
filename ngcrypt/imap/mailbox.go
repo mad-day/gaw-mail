@@ -27,14 +27,18 @@ package imap
 import (
 	"bytes"
 	"time"
+	"io"
 
 	"github.com/emersion/go-imap"
 	"github.com/emersion/go-imap/backend"
 	"github.com/emersion/go-imap/backend/backendutil"
 	//"github.com/mad-day/gaw-mail/util/backendutil"
 	"github.com/emersion/go-message"
+	"github.com/emersion/go-message/textproto"
 	
 	"github.com/mad-day/gaw-mail/ngcrypt"
+	
+	imapfetch "github.com/mad-day/gaw-mail/util/imap-fetch"
 )
 
 type mailbox struct {
@@ -53,15 +57,33 @@ func filter(items []imap.FetchItem) (pass []imap.FetchItem, head,body,size,see b
 		case imap.FetchRFC822Size: size = true
 		case imap.FetchFlags,imap.FetchInternalDate,imap.FetchUid:
 			pass = append(pass,item)
-		default: body = true
-		}
-		if section, err := imap.ParseBodySectionName(item); err==nil {
-			if !section.Peek { see = true }
-		} else {
-			switch item {
-			case imap.FetchRFC822, imap.FetchRFC822Text: see = true
+		default:
+			if section, err := imap.ParseBodySectionName(item); err==nil {
+				if !section.Peek { see = true }
+				item2,ok := imapfetch.Shortcut(section)
+				if !ok {
+					head = true
+					body = true
+				} else {
+					switch item2 {
+					case imap.FetchRFC822:
+						head = true
+						body = true
+					case imap.FetchRFC822Header:
+						head = true
+					case imap.FetchRFC822Text:
+						body = true
+					}
+				}
+			} else {
+				head = true
+				body = true
+				switch item {
+				case imap.FetchRFC822, imap.FetchRFC822Text: see = true
+				}
 			}
 		}
+		
 	}
 	
 	return
@@ -85,6 +107,9 @@ func epHead(h message.Header) entityPop {
 	r := bytes.NewReader([]byte{})
 	return func() (*message.Entity,error) { return &message.Entity{Header:h,Body:r},nil }
 }
+func epBody(b io.Reader) entityPop {
+	return func() (*message.Entity,error) { return &message.Entity{Body:b},nil }
+}
 
 func (m *mailbox) fetchHeadAndBody(msg *imap.Message) (entityPop,int,error) {
 	m1,m2 := parts(msg.Body)
@@ -100,28 +125,39 @@ func (m *mailbox) fetchHead(msg *imap.Message) (entityPop,int,error) {
 	if err!=nil { return nil,0,err }
 	return epHead(hdr),size,nil
 }
+func (m *mailbox) fetchBody(msg *imap.Message) (entityPop,int,error) {
+	_,m2 := parts(msg.Body)
+	body,err := ngcrypt.DecryptBody(m2,m.u.kr)
+	if err!=nil { return nil,0,err }
+	return epBody(body),-1,nil
+}
+
+func toLiteral(r io.Reader) imap.Literal {
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(r)
+	return buf
+}
+func headerLiteral(h message.Header) imap.Literal {
+	buf := new(bytes.Buffer)
+	textproto.WriteHeader(buf,h.Header)
+	return buf
+}
 
 func fetchNone(_ *imap.Message) (entityPop,int,error) { return nil,0,nil }
 
 func (m *mailbox) ListMessages(uid bool, seqSet *imap.SeqSet, items []imap.FetchItem, ch chan<- *imap.Message) error {
-	// ???: support imap.BodySectionName.Partial
-	// ???: support imap.TextSpecifier
-	
 	pass,head,body,hsize,see := filter(items)
 	
 	/* Short-Cut. */
 	if !( head||body||hsize ) {
 		return m.Mailbox.ListMessages(uid, seqSet, items, ch)
 	}
-	if hsize && !( head||body ) {
-		// TODO: Maybe, we can fetch (imap.FetchRFC822Header) instead.
+	if hsize {
 		head = true
 	}
 	
 	var fetcher func(m *imap.Message) (entityPop,int,error)
 	
-	/* If we fetch body, we'll fetch head as well. */
-	head = head || body
 	if head {
 		tx := new(imap.BodySectionName)
 		tx.Path = []int{1}
@@ -135,8 +171,10 @@ func (m *mailbox) ListMessages(uid bool, seqSet *imap.SeqSet, items []imap.Fetch
 		pass = append(pass,tx.FetchItem())
 	}
 	
-	if body {
+	if head && body {
 		fetcher = m.fetchHeadAndBody
+	} else if body {
+		fetcher = m.fetchBody
 	} else if head {
 		fetcher = m.fetchHead
 	} else {
@@ -177,9 +215,24 @@ func (m *mailbox) ListMessages(uid bool, seqSet *imap.SeqSet, items []imap.Fetch
 					if err != nil {
 						continue msgq /* Skip on error! */
 					}
-		
+					
 					e,err := entPop()
+					
 					if err!=nil { continue msgq } /* Skip on error! */
+					
+					item2,ok := imapfetch.Shortcut(section)
+					if ok {
+						switch item2 {
+						//case imap.FetchRFC822:
+						case imap.FetchRFC822Header:
+							fetched.Body[section] = headerLiteral(e.Header)
+							continue
+						case imap.FetchRFC822Text:
+							fetched.Body[section] = toLiteral(e.Body)
+							continue
+						}
+					}
+					
 					l, err := backendutil.FetchBodySection(e, section)
 					if err!=nil { continue msgq } /* Skip on error! */
 					fetched.Body[section] = l
