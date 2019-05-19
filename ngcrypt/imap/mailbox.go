@@ -177,7 +177,11 @@ func (m *mailbox) ListMessages(uid bool, seqSet *imap.SeqSet, items []imap.Fetch
 	if !( head||body||hsize ) {
 		return m.Mailbox.ListMessages(uid, seqSet, items, ch)
 	}
-	// if hsize { head = true }
+	/*
+	 * If we fetch the Body, the step of fetching the outer header for the RFC822.SIZE is skipped.
+	 * That means, we must compensate for this!
+	 */
+	if hsize && body { head = true }
 	
 	var fetcher func(m *imap.Message) (entityPop,int,error)
 	
