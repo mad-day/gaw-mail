@@ -29,7 +29,7 @@ import (
 	"github.com/emersion/go-imap"
 	"github.com/emersion/go-imap/backend"
 
-	"github.com/emersion/go-pgpmail"
+	pgpmail "github.com/mad-day/gaw-mail/legacy"
 )
 
 type Backend struct {

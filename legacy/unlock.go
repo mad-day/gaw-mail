@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2016 emersion (Simon Ser)
+Copyright (c) 2016 emersion
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -20,51 +20,40 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
+package pgpmail
 
-// Package imap provides a go-imap backend that encrypts and decrypts PGP
-// messages.
-package imap
 
 import (
-	"github.com/emersion/go-imap"
-	"github.com/emersion/go-imap/backend"
+	"sync"
 
-	pgpmail "github.com/mad-day/gaw-mail/legacy"
+	"golang.org/x/crypto/openpgp"
 )
 
-type DecryptMode uint
-type EncryptMode uint
+type UnlockFunction func(username, password string) (openpgp.EntityList, error)
 
-const (
-	DecryptRegular DecryptMode = iota
-	DecryptWrap
-	DecryptFull
-)
+func UnlockRemember(f UnlockFunction) UnlockFunction {
+	cache := map[string]openpgp.EntityList{}
+	return func(username, password string) (openpgp.EntityList, error) {
+		if kr, ok := cache[username]; ok {
+			return kr, nil
+		}
 
-const (
-	EncryptRegular EncryptMode = iota
-	EncryptWrap
-)
+		kr, err := f(username, password)
+		if err != nil {
+			return nil, err
+		}
 
-type Backend struct {
-	backend.Backend
-	
-	Encrypt EncryptMode
-	Decrypt DecryptMode
-	
-	Unlock pgpmail.UnlockFunction
+		cache[username] = kr
+		return kr, nil
+	}
 }
 
-func New(be backend.Backend, unlock pgpmail.UnlockFunction) *Backend {
-	return &Backend{be, EncryptWrap, DecryptWrap, unlock}
-}
+func UnlockSync(f UnlockFunction) UnlockFunction {
+	locker := &sync.Mutex{}
+	return func(username, password string) (openpgp.EntityList, error) {
+		locker.Lock()
+		defer locker.Unlock()
 
-func (be *Backend) Login(conn *imap.ConnInfo,username, password string) (backend.User, error) {
-	if u, err := be.Backend.Login(conn,username, password); err != nil {
-		return nil, err
-	} else if kr, err := be.Unlock(username, password); err != nil {
-		return nil, err
-	} else {
-		return &user{u, be.Encrypt, be.Decrypt, kr}, nil
+		return f(username, password)
 	}
 }
